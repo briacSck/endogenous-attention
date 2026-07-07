@@ -12,6 +12,8 @@ HJ1: deep counterfactuals from the JOINT estimates vs E3's as-if — must win
 Outputs: results/joint_raw.md.
 """
 
+import json
+import os
 import time
 import zlib
 from pathlib import Path
@@ -52,12 +54,41 @@ def main() -> None:
     RESULTS.mkdir(exist_ok=True)
     base = env_pre()
 
-    # ---- T1: recovery ----------------------------------------------------
-    print("T1: simulating true-DGP panels and running the joint estimator...")
+    from joint_estimator import JointResult
+
+    # Wall-clock budget per session: self-stop and persist best-so-far well
+    # before a background-kill window, so a relaunch resumes near-optimal.
+    BUDGET = float(os.environ.get("JOINT_BUDGET", "480"))
+
+    def resume(ckpt: Path, panels_, x0):
+        """Run/continue the joint estimator until it converges, one budgeted
+        session per call. Returns the JointResult and cumulative wall clock."""
+        elapsed0 = 0.0
+        if ckpt.exists():
+            d = json.loads(ckpt.read_text())
+            if d.get("converged"):
+                x = d["x"]
+                print(f"  {ckpt.name}: converged checkpoint loaded.")
+                return (JointResult(x[0], x[1], x[2], x[3], -d["f"], True,
+                                    d.get("n_evals", 0)), d.get("elapsed", 0.0))
+            x0 = tuple(d["x"])
+            elapsed0 = d.get("elapsed", 0.0)
+            print(f"  {ckpt.name}: resuming from x0={x0}, "
+                  f"elapsed {elapsed0:.0f}s, {d.get('n_evals', 0)} evals so far.")
+        res_ = estimate_joint(panels_, base, x0=x0, checkpoint=str(ckpt),
+                              time_budget=BUDGET, elapsed0=elapsed0)
+        d = json.loads(ckpt.read_text())
+        return res_, d.get("elapsed", 0.0)
+
+    # ---- T1: recovery (resumable to survive 10-min run windows) ----------
+    ckpt = RESULTS / "joint_t1.json"
     panels = simulate_true_panels(KAPPA_TRUE)
-    t0 = time.time()
-    res = estimate_joint(panels, base)
-    t1_time = time.time() - t0
+    print("T1: joint estimator on true-DGP panels...")
+    res, t1_time = resume(ckpt, panels, (0.04, 1.0, 8.0, 0.3))
+    if not res.converged:
+        print(f"T1: budget hit, checkpoint saved (elapsed {t1_time:.0f}s). "
+              "Relaunch to resume.")
+        return
     print(f"T1 estimates: theta1={res.theta1:.4f} (0.05), "
           f"theta2={res.theta2:.3f} (1.5), rc={res.rc:.3f} (10), "
           f"kappa={res.kappa:.3f} (0.2); converged={res.converged}")
@@ -70,10 +101,14 @@ def main() -> None:
                                    res.kappa]), kgrid)
     k_argmax = float(kgrid[int(np.argmax(prof))])
 
-    # ---- T2: corner case ---------------------------------------------------
-    print("T2: kappa = 0 DGP...")
+    # ---- T2: corner case (resumable) ---------------------------------------
+    ckpt2 = RESULTS / "joint_t2.json"
     panels0 = simulate_true_panels(0.0)
-    res0 = estimate_joint(panels0, base, x0=(0.04, 1.0, 8.0, 0.05))
+    print("T2: kappa = 0 DGP...")
+    res0, _ = resume(ckpt2, panels0, (0.04, 1.0, 8.0, 0.05))
+    if not res0.converged:
+        print("T2: budget hit, checkpoint saved. Relaunch to resume.")
+        return
     prof0 = kappa_profile(panels0, base,
                           np.array([res0.theta1, res0.theta2, res0.rc,
                                     res0.kappa]), kgrid)

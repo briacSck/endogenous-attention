@@ -51,8 +51,16 @@ The hierarchy of invariance --- behavioral parameters $<$ as-if preferences
 $<$ cognitive primitives --- thus comes with a warning label: each policy
 class requires estimating one level deeper, and depth must be bought
 wholesale, by joint estimation with the attention technology inside the
-likelihood, not retail, by parameter swapping. The coherent joint estimator
-is this paper's designated completion.
+likelihood, not retail, by parameter swapping. We then build that estimator
+and run it. Coherent joint estimation \emph{reverses} the plug-in failure
+--- deep counterfactuals now beat as-if in all five markets --- confirming
+the constructive claim. But it does so without recovering the deep
+parameters: under interior attention $\theta_2$ and $\kappa$ are jointly
+weakly identified along a ridge that is a level set of the attention
+allocation $\mstar$, and the estimator recovers that allocation, not its two
+inputs. Coherence, not point-accuracy, is what buys the counterfactual ---
+the same lesson, a third time, that an instrument identifies only the
+channel it couples to.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -98,8 +106,10 @@ replacing one coordinate with a better estimate of its ``true'' value
 breaks the compensation. Depth is necessary (H1) and identifiable (H3a),
 but must be bought wholesale --- joint estimation of
 $(\theta_1, \theta_2, RC, \kappa)$ with the attention technology inside the
-likelihood --- not retail. Section~\ref{sec:joint} specifies that estimator
-as the paper's designated completion.
+likelihood --- not retail. Section~\ref{sec:joint} builds that estimator and
+runs it: it reverses the failure (deep beats as-if 5/5), but teaches that
+``wholesale'' means recovering the coherent attention allocation, not the
+deep parameters, which stay entangled under interior attention.
 
 \section{The laboratory}\label{sec:lab}
 
@@ -194,18 +204,83 @@ Swapping one coordinate for a deeper estimate, however well identified,
 produces a vector coherent at no level, which predicts worse than honest
 misspecification. Depth must be bought wholesale, not retail.
 
-\section{The designated completion: a coherent deep estimator}
+\section{Buying depth wholesale: the coherent joint estimator}
 \label{sec:joint}
-The constructive resolution this paper still owes --- and will include, in
-this paper rather than a sequel --- is joint full-solution estimation of
-$(\theta_1, \theta_2, RC, \kappa)$: for each candidate parameter vector,
-solve the model, solve the attention problem $\mstar(\kappa, s)$ per
-market, form the implied perception policies, and evaluate the pooled
-likelihood across markets. This estimator is internally coherent at the
-deep level by construction; the computational burden (an attention fixed
-point inside the likelihood) is the reason it is a designated next
-experiment rather than a footnote. Its pre-registration will follow the
-protocol used throughout: hypotheses committed before execution.
+The constructive resolution --- included here rather than deferred to a
+sequel --- is joint full-solution estimation of
+$(\theta_1, \theta_2, RC, \kappa)$: for each candidate vector, solve the
+model, solve the attention problem $\mstar(\kappa, s)$ per market, form the
+implied perception policies, and evaluate the pooled likelihood across the
+five markets. The attention fixed point sits \emph{inside} the likelihood,
+so the estimate is coherent at the deep level by construction. Estimation is
+Nelder--Mead on the pooled log-likelihood; the attention argmax is smoothed
+by a local quadratic fit so the objective is continuous in $\kappa$; value
+iterations and policy evaluations are warm-started and cached across
+likelihood calls. Pre-registration: \texttt{design/prereg\_joint\_%
+estimator.md}, committed before implementation and any recovery run, with a
+three-part recovery battery (T1--T3) and one headline hypothesis (HJ1) fixed
+in advance.
+
+\paragraph{HJ1 (confirmed): coherent depth reverses the plug-in failure.}
+Deep counterfactuals from the joint estimates --- same $\widehat\psi$,
+subsidized $RC$, attention \emph{re-priced} at the new fixed point --- beat
+the as-if benchmark of Section~\ref{sec:h3} in \textbf{all five} markets,
+by factors of $1.3$ to $8.8\times$ (Table~\ref{tab:hj1}). Where E3's retail
+plug-in lost in four of five, the wholesale estimator wins everywhere. The
+constructive claim holds: respecting the attention technology inside
+estimation lets one predict a level up, where parameter-swapping cannot.
+
+\begin{table}[h]\centering\small
+\caption{HJ1 --- policy RMSE of the counterfactual prediction against the
+adapted agent, by market. As-if is the Section~\ref{sec:h3} benchmark; deep
+is the coherent joint estimator.}\label{tab:hj1}
+\begin{tabular}{lccccc}
+\toprule
+stakes $s$ & 0.5 & 0.75 & 1.0 & 1.5 & 2.0 \\
+\midrule
+as-if RMSE (E3) & 0.0248 & 0.0119 & 0.0072 & 0.0158 & 0.0223 \\
+deep RMSE (joint) & 0.0028 & 0.0033 & 0.0054 & 0.0032 & 0.0032 \\
+improvement & 8.8$\times$ & 3.6$\times$ & 1.3$\times$ & 5.0$\times$ &
+7.0$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{But recovery (T1) fails for the deep parameters, and that is the
+finding.} On panels simulated from the true DGP
+($\theta_2 = 1.5, \kappa = 0.2$), the estimator recovers $\theta_1 = 0.054$
+and $RC = 9.99$ cleanly but lands at $\theta_2 = 1.264$ (two-step plug-in:
+1.256) and $\widehat\kappa = 0.138$ (two-step minimum-distance: 0.200 exact).
+Convergence is clean (150 likelihood evaluations, $2.2$s each). So the
+likelihood genuinely prefers $(\theta_2 \approx 1.26, \kappa \approx 0.14)$
+about as much as the truth. The corner check (T2) explains why: with
+$\kappa = 0$ in the DGP, the estimator returns $\widehat\kappa = 0.006$ and
+$\theta_2 = 1.496$ --- \emph{exact}. The $\theta_2$ bias appears only under
+\emph{interior} attention. It is not an estimator defect but a structural
+$\theta_2$--$\kappa$ ridge: many pairs imply nearly the same conditional
+choice probabilities, because what the CCPs respond to is the attention
+allocation $\mstar(\theta_2, \kappa)$, not the two parameters separately.
+
+\paragraph{What is identified is the allocation, and that is what pays.}
+The ridge is a level set of $\mstar$. In Table~\ref{tab:hj1}'s run the
+estimated allocation tracks the truth closely ($\widehat m_1$ vs.\ $m_1$:
+$0.33/0.28,\ 0.50/0.43,\ 0.50/0.50,\ 0.62/0.55,\ 0.75/0.68$) even though
+$\theta_2$ and $\kappa$ are individually off. And the deep counterfactual
+consumes exactly this allocation: to predict post-subsidy behavior one
+re-solves the model and re-prices attention, which needs $\mstar$ right, not
+the $\theta_2$/$\kappa$ split. Hence HJ1 wins $5/5$ \emph{despite} biased
+point estimates. This is the paper's recurring lesson a third time (after
+probes-vs-conformity in the companion and audit-blindness in
+Section~\ref{sec:results}): an instrument identifies only the channel it
+couples to. The coherent likelihood couples to the allocation-$\to$-CCP
+channel; it is blind to the parameter decomposition, and the counterfactual
+does not need it. ``Wholesale'' is therefore sharper than first stated: you
+buy the whole coherent \emph{allocation}, not the retail parameters ---
+which is enough, because the allocation is the object the next Lucas level
+consumes. Breaking the ridge (point-identifying $\theta_2$ and $\kappa$
+separately) needs an attention-cost shifter; whether that sharpens the
+already-excellent counterfactuals or only the parameters is the designated
+in-paper next experiment.
 
 \section{Discussion}\label{sec:discussion}
 Three sentences of positioning. For structural practice: the Lucas critique
@@ -264,5 +339,8 @@ White, H. (1982). Maximum likelihood estimation of misspecified models.
 % Caplin, Dean & Leahy (JPE 2022?) for attention-cost identification if it
 % survives verification; inference (permutation p / CIs) on the 0.88 once
 % the kappa grid is final; figure e1_e2.png inclusion.
+% DONE 2026-07-07: joint estimator built + run (Sec 5). HJ1 confirmed 5/5;
+% T1 reveals theta2-kappa ridge under interior attention (results/joint.md).
+% Next in-paper experiment: attention-cost shifter to break the ridge.
 
 \end{document}

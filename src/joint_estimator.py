@@ -17,7 +17,10 @@ Numerical mitigations (all pre-committed):
   per-market scales (trap 4).
 """
 
+import json
+import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from scipy.optimize import minimize
@@ -27,7 +30,7 @@ from mdp import Panel
 from mdp2d import RustMDP2D
 
 
-M_GRID = np.linspace(0.0, 1.0, 21)
+M_GRID = np.linspace(0.0, 1.0, 11)
 
 
 @dataclass
@@ -42,11 +45,45 @@ class JointResult:
 
 
 class _Cache:
-    """Warm starts across likelihood evaluations."""
+    """Warm starts + precomputed transition structure (theta-independent).
+
+    T3 note: on this machine LAPACK dense solves are ~100x slower than
+    normal (165 ms per 300x300 solve — likely emulated BLAS), so exact
+    linear-solve policy evaluation LOSES to warm-started fixed-point
+    iteration. We therefore iterate, with matrices precomputed once and
+    values warm-started per (market, m-grid-point) across likelihood calls.
+    """
 
     def __init__(self):
-        self.v_solve = {}   # s -> V for env_s value iteration
-        self.v_pol = {}     # (s, m_index) -> V^pi for policy evaluation
+        self.v_solve = {}     # s -> V for env_s value iteration warm start
+        self.v_pol = {}       # (s, m_index) -> V^pi warm start
+        self.p_keep = None    # transitions do not depend on theta or s
+        self.p_replace = None
+
+    def transitions(self, mdp: RustMDP2D):
+        if self.p_keep is None:
+            self.p_keep = mdp.transition_matrix()
+            _, c = mdp.state_grid()
+            self.p_replace = self.p_keep[c]
+        return self.p_keep, self.p_replace
+
+
+def _policy_value_iter(u: np.ndarray, p_keep, p_replace, beta: float,
+                       pol: np.ndarray, v_init=None, tol: float = 1e-3,
+                       max_iter: int = 5000) -> np.ndarray:
+    # tol 1e-3: B(m) only needs to rank adjacent m-grid points, whose
+    # benefit gaps are ~3e-2 — precision beyond 1e-3 buys nothing (T3).
+    """Warm-started fixed-point policy evaluation with precomputed
+    transitions (no per-call matrix rebuilds)."""
+    u_pi = (1 - pol) * u[:, 0] + pol * u[:, 1]
+    v = np.zeros(len(u_pi)) if v_init is None else v_init
+    for _ in range(max_iter):
+        v_new = u_pi + beta * ((1 - pol) * (p_keep @ v)
+                               + pol * (p_replace @ v))
+        if np.max(np.abs(v_new - v)) < tol:
+            return v_new
+        v = v_new
+    raise RuntimeError("policy evaluation did not converge")
 
 
 def _m_star_smooth(benefits: np.ndarray, kappa: float) -> float:
@@ -79,11 +116,13 @@ def market_ccp(psi: np.ndarray, s: float, base: RustMDP2D,
     sol = env.solve(tol=1e-8, v_init=cache.v_solve.get(s))
     cache.v_solve[s] = sol.v_bar
 
+    p_keep, p_replace = cache.transitions(env)
+    u = env.flow_utility()
     benefits = np.empty(len(M_GRID))
     for i, m in enumerate(M_GRID):
         pol = perception_policy(sol, m)
-        v = policy_value(env, pol, tol=1e-7,
-                         v_init=cache.v_pol.get((s, i)))
+        v = _policy_value_iter(u, p_keep, p_replace, env.beta, pol,
+                               v_init=cache.v_pol.get((s, i)))
         cache.v_pol[(s, i)] = v
         benefits[i] = v.mean()
 
@@ -91,11 +130,27 @@ def market_ccp(psi: np.ndarray, s: float, base: RustMDP2D,
     return perception_policy(sol, m_s), m_s
 
 
+class _TimeBudget(Exception):
+    """Raised inside the optimizer callback to stop before a kill window."""
+
+
 def estimate_joint(panels: dict[float, Panel], base: RustMDP2D,
-                   x0=(0.04, 1.0, 8.0, 0.3)) -> JointResult:
-    """Pooled MLE over markets {s: Panel}."""
+                   x0=(0.04, 1.0, 8.0, 0.3), checkpoint: str | None = None,
+                   time_budget: float | None = None,
+                   elapsed0: float = 0.0) -> JointResult:
+    """Pooled MLE over markets {s: Panel}.
+
+    Resumable (T3, slow-BLAS machine): pass ``checkpoint`` to persist the
+    best point every optimizer iteration and ``time_budget`` (seconds) to
+    stop gracefully before a background-kill window. A follow-up call that
+    reads x0 from the same checkpoint restarts the simplex warm near the
+    optimum, so a killed run loses at most one iteration of progress.
+    """
     cache = _Cache()
     n_evals = [0]
+    best = {"x": np.asarray(x0, dtype=float), "f": np.inf}
+    t0 = time.time()
+    ck = Path(checkpoint) if checkpoint else None
 
     def nll(psi: np.ndarray) -> float:
         theta1, theta2, rc, kappa = psi
@@ -108,14 +163,39 @@ def estimate_joint(panels: dict[float, Panel], base: RustMDP2D,
             p = np.clip(ccp[panel.states], 1e-12, 1 - 1e-12)
             total -= float(np.sum(np.where(panel.choices == 1,
                                            np.log(p), np.log1p(-p))))
+        if total < best["f"]:
+            best["f"], best["x"] = total, np.array(psi, dtype=float)
         return total
 
-    res = minimize(nll, x0=np.asarray(x0, dtype=float),
-                   method="Nelder-Mead",
-                   options={"xatol": 1e-4, "fatol": 1e-3, "maxiter": 2000})
-    return JointResult(theta1=res.x[0], theta2=res.x[1], rc=res.x[2],
-                       kappa=res.x[3], log_likelihood=-res.fun,
-                       converged=res.success, n_evals=n_evals[0])
+    def _save(converged):
+        ck.write_text(json.dumps({"x": np.asarray(best["x"]).tolist(),
+                                  "f": best["f"], "n_evals": n_evals[0],
+                                  "elapsed": elapsed0 + (time.time() - t0),
+                                  "converged": bool(converged)}))
+
+    def cb(xk):
+        if ck is not None:
+            _save(False)
+        if time_budget is not None and time.time() - t0 > time_budget:
+            raise _TimeBudget
+
+    # fatol 0.5 on a pooled log-likelihood of magnitude ~3e4 is ample;
+    # tighter budgets triple the wall clock for no parameter movement (T3).
+    converged = False
+    try:
+        res = minimize(nll, x0=np.asarray(x0, dtype=float),
+                       method="Nelder-Mead", callback=cb,
+                       options={"xatol": 1e-3, "fatol": 0.5, "maxiter": 600})
+        best["f"], best["x"] = res.fun, res.x
+        converged = bool(res.success)
+    except _TimeBudget:
+        pass  # stopped on wall-clock budget; best-so-far persisted below
+    if ck is not None:
+        _save(converged)
+    x = np.asarray(best["x"], dtype=float)
+    return JointResult(theta1=x[0], theta2=x[1], rc=x[2], kappa=x[3],
+                       log_likelihood=-best["f"], converged=converged,
+                       n_evals=n_evals[0])
 
 
 def kappa_profile(panels: dict[float, Panel], base: RustMDP2D,
