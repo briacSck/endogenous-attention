@@ -146,9 +146,18 @@ def stage2_deep() -> None:
         post_s = scale_stakes(env_post(), s)
         sol_post = post_s.solve()
         m1_hat = m_star(kappa_hat, post_s, grid_size=41, solution=sol_post)
+        m0_hat = m_star(kappa_hat, scale_stakes(env_pre(), s),
+                        grid_size=41, solution=pre_sols[s])
 
-        # Deep prediction: re-priced attention applied to the analyst's model
-        mdp_deep = RustMDP2D(theta1=float(r["theta1"]), theta2=theta2_deep,
+        # Deep prediction, internally consistent variant: de-attenuate the
+        # market's OWN as-if theta2 by the estimated pre-policy attention
+        # (theta2_hat ~ m0 * theta2 => theta2_market = theta2_hat / m0),
+        # keeping the jointly-estimated (theta1_hat, RC_hat) — then
+        # re-perceive at the re-priced attention m1_hat. The pooled-theta2
+        # variant (first run) assembled an inconsistent parameter vector and
+        # underperformed as-if; documented in results.
+        theta2_market = float(r["theta2"]) / max(m0_hat, 1e-6)
+        mdp_deep = RustMDP2D(theta1=float(r["theta1"]), theta2=theta2_market,
                              rc=float(r["rc"]) * 0.5, cost_persist=0.95)
         sol_deep = mdp_deep.solve()
         pol_deep = perception_policy(sol_deep, m1_hat)
