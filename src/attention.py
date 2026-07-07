@@ -62,11 +62,14 @@ def perception_policy(solution, m: float) -> np.ndarray:
 
 
 def policy_value(mdp: RustMDP2D, policy_flat: np.ndarray,
-                 tol: float = 1e-9, max_iter: int = 20_000) -> np.ndarray:
+                 tol: float = 1e-9, max_iter: int = 20_000,
+                 v_init: np.ndarray | None = None) -> np.ndarray:
     """Exact policy evaluation: V^pi(s) under stochastic policy pi.
 
     V^pi = sum_d pi(d|s) [u(s,d) + beta * P_d V^pi], expected flow utilities
-    only (no shock term).
+    only (no shock term). `v_init` warm-starts the iteration — essential
+    inside the joint estimator, where successive candidate parameters are
+    close and cold starts would dominate the likelihood cost.
     """
     u = mdp.flow_utility()
     p_keep = mdp.transition_matrix()
@@ -75,7 +78,7 @@ def policy_value(mdp: RustMDP2D, policy_flat: np.ndarray,
     p1 = policy_flat
     p0 = 1 - p1
 
-    v = np.zeros(mdp.n_states)
+    v = np.zeros(mdp.n_states) if v_init is None else v_init.copy()
     for _ in range(max_iter):
         v_new = (p0 * (u[:, 0] + mdp.beta * (p_keep @ v))
                  + p1 * (u[:, 1] + mdp.beta * (p_replace @ v)))
