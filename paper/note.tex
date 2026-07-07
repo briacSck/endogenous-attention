@@ -1,0 +1,268 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf}
+
+\newcommand{\rhat}{\widehat{RC}}
+\newcommand{\that}[1]{\widehat{\theta}_{#1}}
+\newcommand{\mstar}{m^{*}}
+
+\title{Endogenous Attention and the Hierarchy of Invariance\\
+\large When As-If Estimation Breaks, What Audits Cannot See,\\
+and Why Depth Must Be Bought Wholesale}
+\author{Briac Sockalingum\thanks{briac@berkeley.edu. First draft --- to be
+completed. Companion to ``Do Structural Models Recover Mechanisms?''
+(2026), \url{https://github.com/briacSck/structural-interp}. Code and
+results: \url{https://github.com/briacSck/endogenous-attention}. Hypotheses
+were pre-registered by commit before execution
+(\texttt{design/research\_design.md}).}}
+\date{July 2026 --- Working note (first draft)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent In a companion paper we showed that structural estimation of
+dynamic discrete choice is robust to bounded rationality that stays inside
+the model class: agents with \emph{fixed} inattention are absorbed into
+as-if parameters, and counterfactuals survive. This note breaks the
+assumption doing the work. When attention is \emph{endogenous} --- chosen
+against stakes, as rational-inattention theory requires --- a policy that
+changes stakes moves the cognitive primitive itself. In a laboratory of
+neural sparse-max agents whose attention cost $\kappa$ is known by
+construction, we find, as pre-registered: (i) as-if counterfactual failure
+tracks the policy-induced attention repricing $|m^*_1 - m^*_0|$ (Spearman
+0.88), vanishing at both corners of the attention-cost grid; (ii) internal
+conformity audits computed pre-policy are \emph{blind} to the coming
+failure (Spearman $-0.09$) --- correctly so, since every agent's internals
+genuinely conform before the intervention; the failure lives one level up.
+(iii) The deep primitive is identifiable: minimum distance on the
+cross-market profile of as-if attention slopes recovers the attention cost
+exactly ($\widehat{\kappa} = 0.200$, truth $0.200$). But our pre-registered
+hypothesis that plug-in deep corrections beat as-if predictions is
+\emph{rejected}: swapping a deeper $\theta_2$ into a jointly-estimated
+as-if vector breaks the compensation among its coordinates
+(the pseudo-true-value logic), and predicts worse in four of five markets.
+The hierarchy of invariance --- behavioral parameters $<$ as-if preferences
+$<$ cognitive primitives --- thus comes with a warning label: each policy
+class requires estimating one level deeper, and depth must be bought
+wholesale, by joint estimation with the attention technology inside the
+likelihood, not retail, by parameter swapping. The coherent joint estimator
+is this paper's designated completion.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+The companion paper's reassuring finding --- inattention is absorbed into
+as-if parameters and counterfactuals survive, an empirical realization of
+the \citet{fosgerau2020} equivalence --- rested on one assumption: the
+cognitive primitive stays fixed under the intervention. Rational-inattention
+theory says it should not. Attention responds to stakes
+\citep{matejkamckay2015, gabaix2014, mackowiak2023}; a subsidy that changes
+payoff differences changes what is worth attending to. If so, as-if
+parameters estimated pre-policy are not invariant to the policy --- the
+Lucas critique \citep{lucas1976}, reconstituted one level up, for cognitive
+rather than behavioral parameters.
+
+This note measures that reconstitution in a laboratory where every level of
+the hierarchy is observable. Our agents choose attention $\mstar(\kappa, s)$
+by trading the exact value of perceiving a cost-regime state against a
+quadratic attention cost $\kappa$; stakes $s$ vary across markets; the
+truth --- $(\theta_1, \theta_2, RC, \kappa)$ and the induced attention ---
+is known by construction. Three pre-registered questions: does as-if
+counterfactual failure track the policy-induced attention repricing (H1)?
+Can pre-policy internal audits --- the companion paper's conformity
+diagnostics --- see it coming (H2)? And does recovering the deep primitive
+restore counterfactual validity (H3)?
+
+The answers are yes, no, and --- instructively --- \emph{not the way we
+pre-registered}. H1: failure tracks repricing at Spearman 0.88, with the
+pre-registered corner structure (at $\kappa \to 0$ and $\kappa \to \infty$
+attention is pinned, nothing reprices, as-if predictions are fine). H2:
+the audits are blind (Spearman $-0.09$), and \emph{correctly} blind ---
+pre-policy internals genuinely conform to the model class; what breaks is
+the primitive's response to the intervention, which no pre-policy internal
+measurement contains. This measures precisely what mechanism audits
+certify: invariance under mechanism-preserving interventions, nothing
+stronger. H3: the attention cost is exactly identifiable from
+cross-sectional stakes variation ($\widehat{\kappa} = 0.200$, truth 0.200)
+--- but plug-in deep corrections \emph{underperform} the as-if benchmark in
+four of five markets, in both variants we tried. The diagnosis is the
+pseudo-true-value logic of quasi-maximum likelihood \citep{white1982}: the
+as-if vector's coordinates are jointly chosen and their biases compensate;
+replacing one coordinate with a better estimate of its ``true'' value
+breaks the compensation. Depth is necessary (H1) and identifiable (H3a),
+but must be bought wholesale --- joint estimation of
+$(\theta_1, \theta_2, RC, \kappa)$ with the attention technology inside the
+likelihood --- not retail. Section~\ref{sec:joint} specifies that estimator
+as the paper's designated completion.
+
+\section{The laboratory}\label{sec:lab}
+
+\paragraph{Environment.} The companion paper's two-state-variable bus
+replacement problem: mileage $x$ (60 bins) and a persistent observable cost
+regime $c$ (5 states) scaling maintenance costs by $\theta_2$. Calibration
+for this paper (chosen by a pre-registered instrument-design step
+\emph{before} any failure metric was computed): $\theta_2 = 1.5$, regime
+persistence $0.95$, $(\theta_1, RC, \beta) = (0.05, 10, 0.95)$. The policy
+intervention is a 50\% proportional replacement subsidy ($RC\!: 10 \to 5$).
+
+\paragraph{Endogenous attention.} Agents perceive the regime as
+$c' = m c + (1 - m)\bar c$ and act optimally on the perceived state; the
+attention level is chosen as
+\[
+\mstar(\kappa, \text{env}) \;=\; \arg\max_{m \in [0,1]}\;
+B(m; \text{env}) - \kappa m^2,
+\]
+where $B(m)$ --- the expected discounted payoff of the $m$-perception
+policy --- is computed exactly by policy evaluation on the solved model.
+Comparative statics are verified by unit test: $\mstar$ increases in
+stakes, decreases in $\kappa$, with corners $\mstar(0) = 1$ and
+$\mstar(\infty) = 0$. Under the calibration, the subsidy reprices attention
+by up to $|\mstar_1 - \mstar_0| = 0.175$ across the $\kappa$ grid, with
+repricing exactly zero at both corners --- the instrument H1 requires.
+
+\paragraph{Agents, estimation, audits.} For each $\kappa$ on a ten-point
+grid, an MLP agent (companion architecture and seeds) is trained on the
+$\mstar(\kappa)$-perception policy; the econometrician estimates
+$(\theta_1, \theta_2, RC)$ by NFXP on its simulated pre-policy panel;
+adaptation to the subsidy follows the \emph{stable-cognitive-primitive}
+rule ($\kappa$ fixed, attention re-priced to $\mstar_1$, policy re-derived
+and re-learned); the as-if prediction solves the estimated model at
+$(\that{1}, \that{2}, \rhat/2)$. The conformity audits (per-channel
+dispersion of locally patched causal sensitivities with the insensitivity
+gate) are ported unchanged from the companion paper and computed on
+pre-policy activations only.
+
+\section{Results}\label{sec:results}
+
+\subsection{H1 (confirmed): failure tracks attention repricing}
+Across the $\kappa$ grid, as-if counterfactual policy RMSE correlates with
+the attention repricing $|\mstar_1 - \mstar_0|$ at Spearman
+\textbf{0.88}. The corner structure is exact: for $\kappa \le 0.05$,
+attention is pinned at $m = 1$ pre- and post-subsidy and the as-if
+prediction is at the clone baseline (RMSE $\approx 0.0045$); in the
+interior, failure peaks at 3.6$\times$ baseline ($\kappa = 0.1$:
+$|\Delta m| = 0.15$, RMSE 0.0161). The estimated $\that{2}$ tracks
+$\mstar_0$ across the grid (1.53 at $m = 1$ down to 0.19 at $m = 0.2$):
+the companion paper's as-if absorption, reproduced --- and now exhibited as
+exactly the thing that breaks when the primitive moves.
+
+\emph{Honest magnitudes.} These repricing failures are real but moderate
+--- an order of magnitude smaller than the companion paper's out-of-class
+categorical failures (max RMSE 0.016 vs.\ 0.25; replacement-rate errors
+$\sim$0.001). Under this calibration, moving the primitive hurts less than
+misspecifying the mechanism class. The contribution is the pattern and its
+logic, not the raw bias size.
+
+\subsection{H2 (confirmed): pre-policy audits are blind, and rightly so}
+The conformity audit is uncorrelated with the coming failure (Spearman
+$\mathbf{-0.09}$; audit scores flat across the grid, $cv_x \in
+[0.69, 0.79]$, $cv_c \in [0.53, 0.64]$). This is not an audit defect: every
+fixed-$m$ sparse-max agent's internal mechanism genuinely conforms to the
+assumed class pre-policy, and the audit correctly says so. The failure is
+generated by the primitive's response to the intervention --- information
+that does not exist in pre-policy internals. Together with the companion
+paper this gives the audit technology a precise warranty: \emph{conformity
+audits certify counterfactual validity under mechanism-preserving
+interventions; under primitive-moving interventions they are silent, not
+wrong.}
+
+\subsection{H3 (identification confirmed; plug-in correction rejected)}
+\label{sec:h3}
+A cross-section of five markets with stakes shifters
+$s \in \{0.5, \dots, 2.0\}$ (payoff scale, shock scale fixed) makes the
+as-if attention slope observable: $\that{2}(s)$ rises monotonically with
+stakes (0.54 to 1.18) because higher-stakes agents attend more. Minimum
+distance on this profile, using the known attention technology, recovers
+the deep primitive \emph{exactly}: $\widehat{\kappa} = 0.200$ against a
+truth of $0.200$. The hierarchy's second level is identifiable from
+standard cross-sectional variation.
+
+But the pre-registered H3 --- deep counterfactuals beat as-if by an order
+of magnitude --- is \textbf{rejected}, and we report it as pre-registered.
+Plug-in deep predictions underperform as-if in four of five markets, in
+both variants (pooled $\theta_2^{deep}$, and per-market de-attenuation
+$\that{2}(s)/\widehat{m}_0$). The diagnosis: the as-if vector is a
+pseudo-true value \citep{white1982} --- its coordinates are chosen jointly
+by maximum likelihood, so their individual biases compensate in prediction.
+Swapping one coordinate for a deeper estimate, however well identified,
+produces a vector coherent at no level, which predicts worse than honest
+misspecification. Depth must be bought wholesale, not retail.
+
+\section{The designated completion: a coherent deep estimator}
+\label{sec:joint}
+The constructive resolution this paper still owes --- and will include, in
+this paper rather than a sequel --- is joint full-solution estimation of
+$(\theta_1, \theta_2, RC, \kappa)$: for each candidate parameter vector,
+solve the model, solve the attention problem $\mstar(\kappa, s)$ per
+market, form the implied perception policies, and evaluate the pooled
+likelihood across markets. This estimator is internally coherent at the
+deep level by construction; the computational burden (an attention fixed
+point inside the likelihood) is the reason it is a designated next
+experiment rather than a footnote. Its pre-registration will follow the
+protocol used throughout: hypotheses committed before execution.
+
+\section{Discussion}\label{sec:discussion}
+Three sentences of positioning. For structural practice: the Lucas critique
+does not stop at preferences; whenever a policy moves stakes, attention-like
+primitives move, and the practitioner's choice is between as-if estimates
+with a known invariance warranty and deep estimates bought coherently. For
+interpretability: audit warranties are bounded by mechanism invariance ---
+a boundary this laboratory measures rather than conjectures. For the
+program: the hierarchy of invariance gives the ``microeconomics of
+artificial agents'' its organizing principle --- ask, of any estimator and
+any audit, \emph{which level it certifies}.
+
+Limitations mirror the companion paper (toy scale, MLP agents, transitions
+known), plus two specific to this note: the attention technology is known
+to the analyst in E3 (identification uses its functional form), and the
+quadratic-cost sparse-max is one of several attention models --- the exact
+RI-logit variant is a designated robustness exercise.
+
+\begin{thebibliography}{99}\small
+
+\bibitem[Fosgerau et al.(2020)]{fosgerau2020}
+Fosgerau, M., Melo, E., de Palma, A., \& Shum, M. (2020). Discrete choice
+and rational inattention: A general equivalence result.
+\emph{International Economic Review}, 61(4), 1569--1589.
+
+\bibitem[Gabaix(2014)]{gabaix2014}
+Gabaix, X. (2014). A sparsity-based model of bounded rationality.
+\emph{Quarterly Journal of Economics}, 129(4), 1661--1710.
+
+\bibitem[Lucas(1976)]{lucas1976}
+Lucas, R.~E. (1976). Econometric policy evaluation: A critique.
+\emph{Carnegie-Rochester Conference Series on Public Policy}, 1, 19--46.
+
+\bibitem[Ma\'ckowiak et al.(2023)]{mackowiak2023}
+Ma\'ckowiak, B., Mat\v{e}jka, F., \& Wiederholt, M. (2023). Rational
+inattention: A review. \emph{Journal of Economic Literature}, 61(1),
+226--273.
+
+\bibitem[Mat\v{e}jka \& McKay(2015)]{matejkamckay2015}
+Mat\v{e}jka, F., \& McKay, A. (2015). Rational inattention to discrete
+choices: A new foundation for the multinomial logit model. \emph{American
+Economic Review}, 105(1), 272--298.
+
+\bibitem[Sockalingum(2026)]{companion2026}
+Sockalingum, B. (2026). Do structural models recover mechanisms? Evidence
+from neural agents with observable internals. Working note,
+\url{https://github.com/briacSck/structural-interp}.
+
+\bibitem[White(1982)]{white1982}
+White, H. (1982). Maximum likelihood estimation of misspecified models.
+\emph{Econometrica}, 50(1), 1--25.
+
+\end{thebibliography}
+
+% TODO (author + feynman pass): verify White (1982) page range; add
+% Caplin, Dean & Leahy (JPE 2022?) for attention-cost identification if it
+% survives verification; inference (permutation p / CIs) on the 0.88 once
+% the kappa grid is final; figure e1_e2.png inclusion.
+
+\end{document}
